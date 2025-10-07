@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GRADIENT DESCENT: SOIL MEMORY</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            cursor: none;
+        }
+
+        #canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 10;
+            mix-blend-mode: exclusion;
+        }
+
+        #voiceover {
+            position: absolute;
+            bottom: 15%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 70%;
+            text-align: center;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            opacity: 0;
+            text-shadow: 0 0 20px rgba(255,255,255,0.3);
+            transition: opacity 2s ease-in-out;
+            font-weight: 300;
+            letter-spacing: 0.05em;
+        }
+
+        #shotTitle {
+            position: absolute;
+            top: 5%;
+            left: 5%;
+            font-size: 0.7rem;
+            opacity: 0;
+            color: #888;
+            letter-spacing: 0.3em;
+            transition: opacity 1.5s ease;
+            text-transform: uppercase;
+            font-weight: 400;
+        }
+
+        #dataRuin {
+            position: absolute;
+            top: 5%;
+            right: 5%;
+            font-size: 0.65rem;
+            opacity: 0;
+            color: #666;
+            transition: opacity 1.5s ease;
+            font-family: 'Monaco', monospace;
+        }
+
+        #progress {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 1px;
+            background: rgba(255,255,255,0.2);
+            width: 0%;
+            z-index: 5;
+            transition: width 0.1s linear;
+        }
+
+        #soilReadout {
+            position: absolute;
+            bottom: 5%;
+            left: 5%;
+            font-size: 0.6rem;
+            opacity: 0;
+            color: #555;
+            transition: opacity 1s ease;
+            font-family: 'Monaco', monospace;
+        }
+
+        .cursor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 100;
+            mix-blend-mode: difference;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="progress"></div>
+    <div class="overlay">
+        <div id="shotTitle"></div>
+        <div id="dataRuin"></div>
+        <div id="soilReadout"></div>
+        <div id="voiceover"></div>
+    </div>
+    <div class="cursor"></div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const cursor = document.querySelector('.cursor');
+        
+        // Set canvas size
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const w = canvas.width;
+        const h = canvas.height;
+        const cx = w / 2;
+        const cy = h / 2;
+
+        // Custom cursor
+        document.addEventListener('mousemove', (e) => {
+            cursor.style.left = e.clientX + 'px';
+            cursor.style.top = e.clientY + 'px';
+        });
+
+        // Enhanced film structure with soil memory
+        const film = [
+            {
+                title: "TOPSOIL GOSSIP",
+                data: "strata_depth=0.03m",
+                soil: "leaf_mold:72% worm_cast:28%",
+                voice: "I am the skin that remembers every footstep. Rain tells me secrets about the sky. I don't listen—I absorb.",
+                dur: 45,
+                color: [160, 140, 100]
+            },
+            {
+                title: "CLAY'S PATIENCE",
+                data: "strata_depth=0.15m",
+                soil: "iron_oxide:45% sediment:55%",
+                voice: "I remember when this was riverbed. Before the valley, before the trees. Now roots try to read me.",
+                dur: 60,
+                color: [120, 80, 60]
+            },
+            {
+                title: "GRAVEYARD OF SEASONS",
+                data: "strata_depth=0.30m",
+                soil: "decay:88% memory:12%",
+                voice: "Everything that falls becomes part of my language. Autumn isn't death—it's translation.",
+                dur: 75,
+                color: [80, 60, 40]
+            },
+            {
+                title: "STONE DREAMS",
+                data: "strata_depth=0.60m",
+                soil: "granite:64% quartz:36%",
+                voice: "I am the memory of fire. Volcano breath turned solid. My veins hold lightning.",
+                dur: 60,
+                color: [100, 100, 120]
+            },
+            {
+                title: "WATER'S MEMORY",
+                data: "strata_depth=0.90m",
+                soil: "aquifer:91% time:9%",
+                voice: "I am not water. I am water's recollection of itself. Every sip a ghost of cloud.",
+                dur: 45,
+                color: [80, 100, 140]
+            },
+            {
+                title: "BONE LIBRARY",
+                data: "strata_depth=1.20m",
+                soil: "calcium:77% quiet:23%",
+                voice: "I shelve the dead carefully. They think they're buried. They're just being archived.",
+                dur: 60,
+                color: [200, 200, 180]
+            },
+            {
+                title: "BEDROCK TRUTH",
+                data: "strata_depth=∞",
+                soil: "granite:100% silence:100%",
+                voice: "I am the beginning and the end of every argument. The final page in the ground's book.",
+                dur: 30,
+                color: [60, 60, 80]
+            }
+        ];
+
+        // Soil particle system
+        class SoilParticle {
+            constructor(x, y, layer) {
+                this.x = x;
+                this.y = y;
+                this.layer = layer;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = Math.random() * 0.3 + 0.1;
+                this.life = 1;
+                this.decay = Math.random() * 0.002 + 0.001;
+                this.size = Math.random() * 3 + 1;
+                this.color = film[layer].color;
+            }
+            
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= this.decay;
+                return this.life > 0;
+            }
+            
+            draw(ctx) {
+                const alpha = this.life * 0.8;
+                ctx.fillStyle = `rgba(${this.color[0]}, ${this.color[1]}, ${this.color[2]}, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        let filmStart = Date.now();
+        let currentShot = -1;
+        let soilParticles = [];
+        let lastParticleTime = 0;
+
+        function showText(shot) {
+            document.getElementById('shotTitle').textContent = shot.title;
+            document.getElementById('dataRuin').textContent = shot.data;
+            document.getElementById('soilReadout').textContent = shot.soil;
+            document.getElementById('voiceover').textContent = shot.voice;
+            
+            setTimeout(() => {
+                document.getElementById('shotTitle').style.opacity = '0.8';
+                document.getElementById('dataRuin').style.opacity = '0.7';
+                document.getElementById('soilReadout').style.opacity = '0.6';
+                document.getElementById('voiceover').style.opacity = '1';
+            }, 500);
+        }
+
+        function hideText() {
+            document.getElementById('shotTitle').style.opacity = '0';
+            document.getElementById('dataRuin').style.opacity = '0';
+            document.getElementById('soilReadout').style.opacity = '0';
+            document.getElementById('voiceover').style.opacity = '0';
+        }
+
+        function createSoilParticles(shotIdx, count) {
+            for (let i = 0; i < count; i++) {
+                const x = Math.random() * w;
+                const y = Math.random() * h;
+                soilParticles.push(new SoilParticle(x, y, shotIdx));
+            }
+        }
+
+        function draw() {
+            const now = Date.now();
+            const elapsed = (now - filmStart) / 1000;
+            
+            // Find current shot
+            let time = 0;
+            let shotIdx = 0;
+            for(let i = 0; i < film.length; i++) {
+                if(elapsed >= time && elapsed < time + film[i].dur) {
+                    shotIdx = i;
+                    break;
+                }
+                time += film[i].dur;
+            }
+
+            // Check if film ended
+            const totalDur = film.reduce((sum, s) => sum + s.dur, 0);
+            if(elapsed >= totalDur) {
+                ctx.fillStyle = '#0a0a0a';
+                ctx.fillRect(0, 0, w, h);
+                
+                // Final soil particles
+                soilParticles = soilParticles.filter(p => p.update());
+                soilParticles.forEach(p => p.draw(ctx));
+                
+                document.getElementById('voiceover').textContent = "The ground remembers everything. Even this moment.";
+                document.getElementById('voiceover').style.opacity = '1';
+                return;
+            }
+
+            // Update progress bar
+            document.getElementById('progress').style.width = (elapsed / totalDur * 100) + '%';
+
+            // Shot transition
+            if(shotIdx !== currentShot) {
+                currentShot = shotIdx;
+                hideText();
+                showText(film[shotIdx]);
+                // Create new soil particles for this layer
+                createSoilParticles(shotIdx, 150);
+            }
+
+            const shotTime = elapsed - time;
+            const p = Math.min(shotTime / film[shotIdx].dur, 1);
+            const t = now * 0.001;
+
+            // Clear with subtle fade for soil persistence
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, w, h);
+
+            // Update and draw soil particles
+            soilParticles = soilParticles.filter(particle => particle.update());
+            soilParticles.forEach(particle => particle.draw(ctx));
+
+            // Add new particles occasionally
+            if (now - lastParticleTime > 100) {
+                createSoilParticles(shotIdx, 5);
+                lastParticleTime = now;
+            }
+
+            // SHOT 0: TOPSOIL GOSSIP
+            if(shotIdx === 0) {
+                // Leaf-like patterns
+                for(let i = 0; i < 8; i++) {
+                    const x = Math.random() * w;
+                    const y = Math.random() * h;
+                    const size = 30 + Math.sin(t + i) * 10;
+                    const rotation = t * 0.5 + i;
+                    
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate(rotation);
+                    ctx.strokeStyle = `rgba(160, 140, 100, ${0.3 * p})`;
+                    ctx.lineWidth = 1;
+                    
+                    // Leaf vein pattern
+                    ctx.beginPath();
+                    ctx.moveTo(0, -size/2);
+                    for(let j = 0; j < 5; j++) {
+                        const angle = (j / 4) * Math.PI - Math.PI/2;
+                        const length = size * (0.3 + Math.random() * 0.4);
+                        ctx.lineTo(Math.cos(angle) * length, Math.sin(angle) * length);
+                    }
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+
+            // SHOT 1: CLAY'S PATIENCE
+            if(shotIdx === 1) {
+                // Riverbed patterns
+                const layers = 12;
+                for(let i = 0; i < layers; i++) {
+                    const y = (h / layers) * i;
+                    const wave = Math.sin(t * 0.3 + i * 0.5) * 40 * p;
+                    
+                    ctx.strokeStyle = `rgba(120, 80, 60, ${0.2 + Math.sin(i) * 0.1})`;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(0, y + wave);
+                    
+                    for(let x = 0; x < w; x += 20) {
+                        const segmentWave = Math.sin(x * 0.01 + t + i) * 15;
+                        ctx.lineTo(x, y + wave + segmentWave);
+                    }
+                    ctx.stroke();
+                }
+            }
+
+            // SHOT 2: GRAVEYARD OF SEASONS
+            if(shotIdx === 2) {
+                // Decaying circular patterns
+                for(let i = 0; i < 6; i++) {
+                    const radius = 50 + i * 60;
+                    const segments = 16;
+                    const decay = Math.sin(t + i) * 0.5 + 0.5;
+                    
+                    ctx.strokeStyle = `rgba(80, 60, 40, ${0.3 * decay * p})`;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    
+                    for(let j = 0; j < segments; j++) {
+                        const angle = (j / segments) * Math.PI * 2;
+                        const nextAngle = ((j + 1) / segments) * Math.PI * 2;
+                        const pulse = Math.sin(angle * 3 + t) * 0.3 + 0.7;
+                        
+                        if(j === 0) {
+                            ctx.moveTo(
+                                cx + Math.cos(angle) * radius * pulse,
+                                cy + Math.sin(angle) * radius * pulse
+                            );
+                        }
+                        
+                        ctx.lineTo(
+                            cx + Math.cos(nextAngle) * radius * pulse,
+                            cy + Math.sin(nextAngle) * radius * pulse
+                        );
+                    }
+                    ctx.closePath();
+                    ctx.stroke();
+                }
+            }
+
+            // SHOT 3: STONE DREAMS
+            if(shotIdx === 3) {
+                // Crystalline structures
+                const crystals = 9;
+                for(let i = 0; i < crystals; i++) {
+                    const angle = (i / crystals) * Math.PI * 2;
+                    const distance = 100 + Math.sin(t + i) * 50;
+                    const x = cx + Math.cos(angle) * distance;
+                    const y = cy + Math.sin(angle) * distance;
+                    const size = 20 + Math.sin(t * 2 + i) * 10;
+                    
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate(t * 0.2 + i);
+                    
+                    ctx.strokeStyle = `rgba(100, 100, 120, ${0.6 * p})`;
+                    ctx.lineWidth = 1;
+                    
+                    // Draw crystal
+                    ctx.beginPath();
+                    for(let j = 0; j < 6; j++) {
+                        const crystalAngle = (j / 6) * Math.PI * 2;
+                        const crystalX = Math.cos(crystalAngle) * size;
+                        const crystalY = Math.sin(crystalAngle) * size;
+                        
+                        if(j === 0) ctx.moveTo(crystalX, crystalY);
+                        else ctx.lineTo(crystalX, crystalY);
+                    }
+                    ctx.closePath();
+                    ctx.stroke();
+                    
+                    ctx.restore();
+                }
+            }
+
+            // SHOT 4: WATER'S MEMORY
+            if(shotIdx === 4) {
+                // Flowing water patterns
+                const streams = 5;
+                for(let i = 0; i < streams; i++) {
+                    const x = (w / streams) * i + w / (streams * 2);
+                    
+                    ctx.strokeStyle = `rgba(80, 100, 140, ${0.4 * p})`;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    
+                    for(let y = 0; y < h; y += 2) {
+                        const flow = Math.sin(y * 0.02 + t * 2 + i) * 30 * p;
+                        if(y === 0) ctx.moveTo(x + flow, y);
+                        else ctx.lineTo(x + flow, y);
+                    }
+                    ctx.stroke();
+                }
+            }
+
+            // SHOT 5: BONE LIBRARY
+            if(shotIdx === 5) {
+                // Fossil-like patterns
+                for(let i = 0; i < 15; i++) {
+                    const x = Math.random() * w;
+                    const y = Math.random() * h;
+                    const size = 10 + Math.random() * 30;
+                    const age = Math.sin(t + i) * 0.3 + 0.7;
+                    
+                    ctx.strokeStyle = `rgba(200, 200, 180, ${0.5 * age * p})`;
+                    ctx.lineWidth = 1;
+                    
+                    // Bone segment
+                    ctx.beginPath();
+                    ctx.ellipse(x, y, size, size/3, Math.random() * Math.PI, 0, Math.PI * 2);
+                    ctx.stroke();
+                    
+                    // Bone details
+                    ctx.beginPath();
+                    for(let j = 0; j < 3; j++) {
+                        const detailX = x + (Math.random() - 0.5) * size;
+                        const detailY = y + (Math.random() - 0.5) * size/2;
+                        ctx.moveTo(detailX - 2, detailY);
+                        ctx.lineTo(detailX + 2, detailY);
+                    }
+                    ctx.stroke();
+                }
+            }
+
+            // SHOT 6: BEDROCK TRUTH
+            if(shotIdx === 6) {
+                // Solid, unmoving patterns
+                const plates = 7;
+                for(let i = 0; i < plates; i++) {
+                    const width = w / plates;
+                    const x = i * width;
+                    const height = h * (0.3 + Math.sin(i) * 0.1);
+                    const y = (h - height) / 2;
+                    
+                    ctx.fillStyle = `rgba(60, 60, 80, ${0.8 * p})`;
+                    ctx.fillRect(x, y, width * 0.9, height);
+                    
+                    // Plate texture
+                    ctx.strokeStyle = `rgba(40, 40, 60, ${0.5 * p})`;
+                    ctx.lineWidth = 1;
+                    for(let j = 0; j < 5; j++) {
+                        const lineY = y + (height / 5) * j;
+                        ctx.beginPath();
+                        ctx.moveTo(x, lineY);
+                        ctx.lineTo(x + width * 0.9, lineY);
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            requestAnimationFrame(draw);
+        }
+
+        // Start on click with soil initialization
+        document.addEventListener('click', () => {
+            if (filmStart === null) {
+                filmStart = Date.now();
+                draw();
+            }
+        });
+
+        // Initial display
+        document.getElementById('voiceover').textContent = "Click to begin the descent into soil memory";
+        document.getElementById('voiceover').style.opacity = '1';
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
